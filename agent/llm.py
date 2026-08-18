@@ -1,20 +1,23 @@
 """
 llm.py — the ONE place the agent talks to a model. Provider-agnostic.
 
-All options below speak the OpenAI-compatible API, so the code is identical —
-only base_url / key / model change. Pick with AGENT_PROVIDER:
+All options below speak the OpenAI-compatible API.
+Pick with AGENT_PROVIDER:
 
-  openrouter (default here) -> set OPENROUTER_API_KEY  (openrouter.ai/keys)
-                               default model: deepseek/deepseek-chat-v3:free
-  gemini  (free)            -> set GEMINI_API_KEY      (aistudio.google.com/apikey)
-  groq    (free, fast)      -> set GROQ_API_KEY        (console.groq.com/keys)
+  openrouter (default here) -> set OPENROUTER_API_KEY
+  gemini  (free)            -> set GEMINI_API_KEY
+  groq    (free, fast)      -> set GROQ_API_KEY
   ollama  (local, private)  -> run `ollama serve`, no key needed
-  openai / anthropic        -> paid, set the matching *_API_KEY
+  openai / anthropic        -> paid, set matching key
 
 Override the model any time with AGENT_MODEL.
 Smoke-test with no key at all:  AGENT_FAKE_LLM=1
 """
-import os, json, time
+import os
+import json
+import time
+import urllib.request
+
 def _load_dotenv():
     here = os.path.dirname(os.path.abspath(__file__))
     for path in (os.path.join(here, ".env"), os.path.join(here, "..", ".env")):
@@ -27,24 +30,18 @@ def _load_dotenv():
                     k, v = line.split("=", 1)
                     os.environ.setdefault(k.strip(), v.strip().strip('"').strip("'"))
 _load_dotenv()
-PROVIDER = os.environ.get("AGENT_PROVIDER", "openrouter").lower()
 
-# provider -> (base_url, api-key env var, default model)
+PROVIDER = os.environ.get("AGENT_PROVIDER", "groq").lower()
+
 _PROVIDERS = {
-    "openrouter": ("https://openrouter.ai/api/v1",
-                   "OPENROUTER_API_KEY", "deepseek/deepseek-chat-v3:free"),
-    "gemini": ("https://generativelanguage.googleapis.com/v1beta/openai/",
-               "GEMINI_API_KEY", "gemini-2.5-flash"),
-    "groq":   ("https://api.groq.com/openai/v1",
-               "GROQ_API_KEY", "groq/compound-mini"),
-    "ollama": ("http://localhost:11434/v1",
-               None, "qwen2.5-coder"),
-    "openai": ("https://api.openai.com/v1",
-               "OPENAI_API_KEY", "gpt-4o-mini"),
-    "anthropic": (None, "ANTHROPIC_API_KEY", "claude-sonnet-4-6"),  # native, handled below
+    "openrouter": ("https://openrouter.ai/api/v1", "OPENROUTER_API_KEY", "deepseek/deepseek-chat-v3:free"),
+    "gemini": ("https://generativelanguage.googleapis.com/v1beta/openai/", "GEMINI_API_KEY", "gemini-2.5-flash"),
+    "groq": ("https://api.groq.com/openai/v1", "GROQ_API_KEY", "groq/compound-mini"),
+    "ollama": ("http://localhost:11434/v1", None, "qwen2.5-coder"),
+    "openai": ("https://api.openai.com/v1", "OPENAI_API_KEY", "gpt-4o-mini"),
 }
 
-MODEL = os.environ.get("AGENT_MODEL")  # override any default
+MODEL = os.environ.get("AGENT_MODEL")
 
 
 def _fake(system: str, user: str) -> str:
@@ -73,8 +70,13 @@ def call_llm(system: str, user: str, max_tokens: int = 1024) -> str:
     if not api_key:
         api_key = "dummy"
 
-    from openai import OpenAI
-    
+    url = f"{base_url.rstrip('/')}/chat/completions"
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) KezzlerAgent/1.0"
+    }
+
     models_to_try = [model]
     if "groq/compound-mini" not in models_to_try:
         models_to_try.append("groq/compound-mini")
@@ -84,25 +86,23 @@ def call_llm(system: str, user: str, max_tokens: int = 1024) -> str:
     last_err = None
     for m in models_to_try:
         try:
-            client = OpenAI(
-                base_url=base_url or "https://api.groq.com/openai/v1",
-                api_key=api_key,
-                timeout=30.0,
-                max_retries=2
-            )
-            r = client.chat.completions.create(
-                model=m,
-                max_tokens=max_tokens,
-                messages=[
+            p_data = json.dumps({
+                "model": m,
+                "messages": [
                     {"role": "system", "content": system},
                     {"role": "user", "content": user}
                 ],
-            )
-            res = (r.choices[0].message.content or "").strip()
-            if res:
-                return res
+                "max_tokens": max_tokens
+            }).encode("utf-8")
+            
+            req = urllib.request.Request(url, data=p_data, headers=headers)
+            with urllib.request.urlopen(req, timeout=30) as response:
+                resp_data = json.loads(response.read().decode("utf-8"))
+                content = resp_data["choices"][0]["message"]["content"]
+                if content:
+                    return content.strip()
         except Exception as e:
             last_err = e
             time.sleep(0.5)
 
-    raise RuntimeError(f"LLM Call Failed: {str(last_err)}")
+    raise RuntimeError(f"LLM Connection Error: {str(last_err)}")
