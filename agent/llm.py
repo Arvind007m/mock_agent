@@ -74,11 +74,19 @@ def call_llm(system: str, user: str, max_tokens: int = 1024) -> str:
 
     url = f"{base_url.rstrip('/')}/chat/completions"
 
-    # Multi-model pool to seamlessly bypass single-model 429 rate limit buckets
-    models_to_try = [model]
-    for alt in ("groq/compound-mini", "llama-3.1-8b-instant", "llama-3.3-70b-versatile"):
-        if alt not in models_to_try:
-            models_to_try.append(alt)
+    # Active verified Groq model pool
+    active_groq_models = [
+        "groq/compound-mini",
+        "groq/compound",
+        "qwen/qwen3.6-27b",
+        "openai/gpt-oss-120b",
+        "openai/gpt-oss-20b"
+    ]
+
+    models_to_try = [model] if model in active_groq_models else []
+    for m in active_groq_models:
+        if m not in models_to_try:
+            models_to_try.append(m)
 
     last_err = None
     for m in models_to_try:
@@ -109,8 +117,8 @@ def call_llm(system: str, user: str, max_tokens: int = 1024) -> str:
             last_err = e
             err_str = str(e)
             if "429" in err_str:
-                time.sleep(1.5)
-            else:
                 time.sleep(0.5)
+            else:
+                time.sleep(0.2)
 
     raise RuntimeError(f"LLM Connection Error: {str(last_err)}")
