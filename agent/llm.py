@@ -28,10 +28,11 @@ def _load_dotenv():
                     if not line or line.startswith("#") or "=" not in line:
                         continue
                     k, v = line.split("=", 1)
-                    os.environ.setdefault(k.strip(), v.strip().strip('"').strip("'"))
+                    val = v.strip().strip('"').strip("'").replace('\r', '').replace('\n', '')
+                    os.environ.setdefault(k.strip(), val)
 _load_dotenv()
 
-PROVIDER = os.environ.get("AGENT_PROVIDER", "groq").lower()
+PROVIDER = os.environ.get("AGENT_PROVIDER", "groq").lower().strip()
 
 _PROVIDERS = {
     "openrouter": ("https://openrouter.ai/api/v1", "OPENROUTER_API_KEY", "deepseek/deepseek-chat-v3:free"),
@@ -62,11 +63,12 @@ def call_llm(system: str, user: str, max_tokens: int = 1024) -> str:
     if os.environ.get("AGENT_FAKE_LLM") == "1":
         return _fake(system, user)
 
-    provider = os.environ.get("AGENT_PROVIDER", "groq").lower()
+    provider = os.environ.get("AGENT_PROVIDER", "groq").lower().strip()
     base_url, key_env, default_model = _PROVIDERS.get(provider, ("https://api.groq.com/openai/v1", "GROQ_API_KEY", "groq/compound-mini"))
-    model = os.environ.get("AGENT_MODEL") or default_model
+    model = (os.environ.get("AGENT_MODEL") or default_model).strip()
 
-    api_key = os.environ.get(key_env) or os.environ.get("GROQ_API_KEY")
+    raw_key = os.environ.get(key_env) or os.environ.get("GROQ_API_KEY") or ""
+    api_key = raw_key.strip().replace('\r', '').replace('\n', '')
     if not api_key:
         api_key = "dummy"
 
