@@ -1,0 +1,8 @@
+fastapi
+uvicorn
+pymysql
+langgraph
+openai
+pydantic
+Faker
+python-dotenv
