@@ -149,9 +149,11 @@ def _strip_fences(text: str) -> str:
     text = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL | re.IGNORECASE)
     text = re.sub(r"```[a-z]*\n?", "", text, flags=re.IGNORECASE)
     text = re.sub(r"```", "", text)
-    m = re.search(r"(SELECT\s+.*)", text, flags=re.IGNORECASE | re.DOTALL)
+    m = re.search(r"(SELECT\s+[\s\S]+)", text, flags=re.IGNORECASE)
     if m:
         text = m.group(1)
+    if ";" in text:
+        text = text.split(";")[0] + ";"
     return text.strip()
 
 def _json_only(text: str) -> str:
