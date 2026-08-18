@@ -66,16 +66,15 @@ def call_llm(system: str, user: str, max_tokens: int = 1024) -> str:
         return _fake(system, user)
 
     provider = os.environ.get("AGENT_PROVIDER", "groq").lower()
-    base_url, key_env, default_model = _PROVIDERS.get(provider, (None, None, "groq/compound-mini"))
+    base_url, key_env, default_model = _PROVIDERS.get(provider, ("https://api.groq.com/openai/v1", "GROQ_API_KEY", "groq/compound-mini"))
     model = os.environ.get("AGENT_MODEL") or default_model
 
-    # everyone else: OpenAI-compatible
+    api_key = os.environ.get(key_env) or os.environ.get("GROQ_API_KEY")
+    if not api_key:
+        raise RuntimeError("GROQ_API_KEY environment variable is not configured on Vercel.")
+
     from openai import OpenAI
-    api_key = os.environ.get(key_env, "") if key_env else "ollama"
-    if key_env and not api_key:
-        raise RuntimeError(f"{key_env} not set (provider={PROVIDER}). "
-                           f"Get a free key, or use AGENT_FAKE_LLM=1 to test wiring.")
-    client = OpenAI(base_url=base_url, api_key=api_key or "x")
+    client = OpenAI(base_url=base_url or "https://api.groq.com/openai/v1", api_key=api_key)
     r = client.chat.completions.create(
         model=model, max_tokens=max_tokens,
         messages=[{"role": "system", "content": system},
