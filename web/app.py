@@ -129,48 +129,62 @@ def chat_endpoint(req: ChatRequest):
         raise HTTPException(status_code=400, detail="Question cannot be empty")
 
     start_time = time.time()
-    
-    # 1. Invoke LangGraph Agent
-    agent_output = answer(question)
-    
-    raw_sql = agent_output.get("sql")
-    refused = agent_output.get("refused", False)
-    note = agent_output.get("note", "")
+    try:
+        # 1. Invoke LangGraph Agent
+        agent_output = answer(question)
+        
+        raw_sql = agent_output.get("sql")
+        refused = agent_output.get("refused", False)
+        note = agent_output.get("note", "")
 
-    # 2. Safety check & execution
-    safety_ok = True
-    safety_reason = "OK"
-    exec_result = None
+        # 2. Safety check & execution
+        safety_ok = True
+        safety_reason = "OK"
+        exec_result = None
 
-    if raw_sql and not refused:
-        safety_ok, safety_reason = is_safe(raw_sql)
-        if safety_ok:
-            exec_result = execute_query(raw_sql)
-        else:
-            exec_result = {
-                "success": False,
-                "columns": [],
-                "rows": [],
-                "row_count": 0,
-                "duration_ms": 0,
-                "error": f"Blocked by safety guardrail: {safety_reason}",
-                "executed_sql": raw_sql
-            }
+        if raw_sql and not refused:
+            safety_ok, safety_reason = is_safe(raw_sql)
+            if safety_ok:
+                exec_result = execute_query(raw_sql)
+            else:
+                exec_result = {
+                    "success": False,
+                    "columns": [],
+                    "rows": [],
+                    "row_count": 0,
+                    "duration_ms": 0,
+                    "error": f"Blocked by safety guardrail: {safety_reason}",
+                    "executed_sql": raw_sql
+                }
 
-    total_duration_ms = round((time.time() - start_time) * 1000, 2)
+        total_duration_ms = round((time.time() - start_time) * 1000, 2)
 
-    return {
-        "question": question,
-        "refused": refused,
-        "note": note,
-        "sql": raw_sql,
-        "is_safe": safety_ok,
-        "safety_reason": safety_reason,
-        "execution": exec_result,
-        "total_duration_ms": total_duration_ms,
-        "provider": os.environ.get("AGENT_PROVIDER", "groq"),
-        "model": os.environ.get("AGENT_MODEL", "llama-3.3-70b-versatile"),
-    }
+        return {
+            "question": question,
+            "refused": refused,
+            "note": note,
+            "sql": raw_sql,
+            "is_safe": safety_ok,
+            "safety_reason": safety_reason,
+            "execution": exec_result,
+            "total_duration_ms": total_duration_ms,
+            "provider": os.environ.get("AGENT_PROVIDER", "groq"),
+            "model": os.environ.get("AGENT_MODEL", "groq/compound-mini"),
+        }
+    except Exception as err:
+        total_duration_ms = round((time.time() - start_time) * 1000, 2)
+        return {
+            "question": question,
+            "refused": True,
+            "note": f"Server Processing Exception: {str(err)}",
+            "sql": None,
+            "is_safe": False,
+            "safety_reason": None,
+            "execution": None,
+            "total_duration_ms": total_duration_ms,
+            "provider": os.environ.get("AGENT_PROVIDER", "groq"),
+            "model": os.environ.get("AGENT_MODEL", "groq/compound-mini"),
+        }
 
 @app.get("/", response_class=HTMLResponse)
 def index():
