@@ -73,17 +73,12 @@ def call_llm(system: str, user: str, max_tokens: int = 1024) -> str:
         api_key = "dummy"
 
     url = f"{base_url.rstrip('/')}/chat/completions"
-    headers = {
-        "Authorization": f"Bearer {api_key}",
-        "Content-Type": "application/json",
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) KezzlerAgent/1.0"
-    }
 
     models_to_try = [model]
     if "groq/compound-mini" not in models_to_try:
         models_to_try.append("groq/compound-mini")
-    if "groq/compound" not in models_to_try:
-        models_to_try.append("groq/compound")
+    if "qwen/qwen3.6-27b" not in models_to_try:
+        models_to_try.append("qwen/qwen3.6-27b")
 
     last_err = None
     for m in models_to_try:
@@ -96,6 +91,13 @@ def call_llm(system: str, user: str, max_tokens: int = 1024) -> str:
                 ],
                 "max_tokens": max_tokens
             }).encode("utf-8")
+
+            headers = {
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+                "Content-Length": str(len(p_data)),
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) KezzlerAgent/1.0"
+            }
             
             req = urllib.request.Request(url, data=p_data, headers=headers)
             with urllib.request.urlopen(req, timeout=30) as response:
