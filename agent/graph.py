@@ -86,12 +86,12 @@ def retrieve_schema(state: S) -> S:
 
 def generate_sql(state: S) -> S:
     sys_p = ("You write ONE MySQL SELECT for the given schema. "
-             "Output ONLY the SQL, no prose, no markdown fences. "
+             "Output ONLY the raw SQL query, no prose, no explanations, no repeating prompt text, no markdown fences. "
              "Read-only. Follow the JOIN/SEMANTIC RULES exactly.")
     usr = f"{state['schema']}\n\nQuestion: {state['question']}\n"
     if state.get("error"):
-        usr += (f"\nYour previous SQL failed with:\n{state['error']}\n"
-                f"Previous SQL:\n{state.get('sql')}\nFix it. SQL only.")
+        usr += (f"\nYour previous SQL attempt failed with error:\n{state['error']}\n"
+                f"Fix the SQL query. Output ONLY the corrected SQL query starting with SELECT.")
     sql = _strip_fences(call_llm(sys_p, usr, max_tokens=800))
     return {"sql": sql, "attempts": state.get("attempts", 0) + 1}
 
@@ -149,16 +149,16 @@ def _strip_fences(text: str) -> str:
     text = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL | re.IGNORECASE)
     text = re.sub(r"```[a-z]*\n?", "", text, flags=re.IGNORECASE)
     text = re.sub(r"```", "", text)
-    idx = text.upper().find("SELECT")
-    if idx != -1:
-        text = text[idx:]
+    matches = list(re.finditer(r"\bSELECT\b", text, flags=re.IGNORECASE))
+    if matches:
+        text = text[matches[-1].start():]
     if ";" in text:
         text = text.split(";")[0] + ";"
     else:
         lines = []
         for line in text.splitlines():
             l_strip = line.strip().lower()
-            if l_strip.startswith(("- ", "* ", "note:", "**", "this ", "here ", "constraint")):
+            if l_strip.startswith(("- ", "* ", "note:", "**", "this ", "here ", "constraint", "question:", "previous")):
                 break
             lines.append(line)
         text = "\n".join(lines).strip()
