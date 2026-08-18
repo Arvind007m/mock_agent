@@ -34,13 +34,17 @@ class ChatRequest(BaseModel):
     question: str
 
 def get_db_connection():
-    db_host = os.environ.get("DB_HOST", "127.0.0.1")
+    db_host = os.environ.get("DB_HOST", "127.0.0.1").strip().replace('\r', '').replace('\n', '')
+    db_port = int(str(os.environ.get("DB_PORT", "3306")).strip().replace('\r', '').replace('\n', ''))
+    db_user = os.environ.get("AGENT_USER", "agent_ro").strip().replace('\r', '').replace('\n', '')
+    db_pw = os.environ.get("AGENT_PW", "agent_ro_pw").strip().replace('\r', '').replace('\n', '')
+    db_name = os.environ.get("DB_NAME", "kezzler").strip().replace('\r', '').replace('\n', '')
     conn_kwargs = dict(
         host=db_host,
-        port=int(os.environ.get("DB_PORT", "3306")),
-        user=os.environ.get("AGENT_USER", "agent_ro"),
-        password=os.environ.get("AGENT_PW", "agent_ro_pw"),
-        database=os.environ.get("DB_NAME", "kezzler"),
+        port=db_port,
+        user=db_user,
+        password=db_pw,
+        database=db_name,
         autocommit=True,
         cursorclass=pymysql.cursors.Cursor,
         connect_timeout=10,

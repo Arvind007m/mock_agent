@@ -6,13 +6,18 @@ AGENT_SKIP_EXEC=1, execution is skipped and the agent returns its SQL unverified
 import os
 
 def _cfg():
-    host = os.environ.get("DB_HOST", "127.0.0.1")
+    host = os.environ.get("DB_HOST", "127.0.0.1").strip().replace('\r', '').replace('\n', '')
+    port = int(str(os.environ.get("DB_PORT", "3306")).strip().replace('\r', '').replace('\n', ''))
+    user = os.environ.get("AGENT_USER", "agent_ro").strip().replace('\r', '').replace('\n', '')
+    password = os.environ.get("AGENT_PW", "agent_ro_pw").strip().replace('\r', '').replace('\n', '')
+    database = os.environ.get("DB_NAME", "kezzler").strip().replace('\r', '').replace('\n', '')
+    
     cfg_dict = dict(
         host=host,
-        port=int(os.environ.get("DB_PORT", "3306")),
-        user=os.environ.get("AGENT_USER", "agent_ro"),
-        password=os.environ.get("AGENT_PW", "agent_ro_pw"),
-        database=os.environ.get("DB_NAME", "kezzler"),
+        port=port,
+        user=user,
+        password=password,
+        database=database,
         connect_timeout=10,
     )
     if host != "127.0.0.1" and host != "localhost":
