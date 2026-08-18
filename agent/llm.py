@@ -107,6 +107,6 @@ def call_llm(system: str, user: str, max_tokens: int = 1024) -> str:
                     return content.strip()
         except Exception as e:
             last_err = e
-            time.sleep(0.5)
+            time.sleep(2.0)
 
     raise RuntimeError(f"LLM Connection Error: {str(last_err)}")

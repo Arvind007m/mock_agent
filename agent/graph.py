@@ -146,8 +146,12 @@ def _assumption_note(question: str) -> str:
 
 
 def _strip_fences(text: str) -> str:
-    text = re.sub(r"^```[a-z]*\n?", "", text.strip())
-    text = re.sub(r"\n?```$", "", text)
+    text = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL | re.IGNORECASE)
+    text = re.sub(r"```[a-z]*\n?", "", text, flags=re.IGNORECASE)
+    text = re.sub(r"```", "", text)
+    m = re.search(r"(SELECT\s+.*)", text, flags=re.IGNORECASE | re.DOTALL)
+    if m:
+        text = m.group(1)
     return text.strip()
 
 def _json_only(text: str) -> str:
