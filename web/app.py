@@ -18,21 +18,36 @@ if ROOT_DIR not in sys.path:
 from agent.graph import answer
 from harness.safety import is_safe, enforce_limit
 
+from fastapi.middleware.cors import CORSMiddleware
+
 app = FastAPI(title="Kezzler AI Agent Chat Interface", version="1.0.0")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 class ChatRequest(BaseModel):
     question: str
 
 def get_db_connection():
-    return pymysql.connect(
-        host=os.environ.get("DB_HOST", "127.0.0.1"),
+    db_host = os.environ.get("DB_HOST", "127.0.0.1")
+    conn_kwargs = dict(
+        host=db_host,
         port=int(os.environ.get("DB_PORT", "3306")),
         user=os.environ.get("AGENT_USER", "agent_ro"),
         password=os.environ.get("AGENT_PW", "agent_ro_pw"),
         database=os.environ.get("DB_NAME", "kezzler"),
         autocommit=True,
         cursorclass=pymysql.cursors.Cursor,
+        connect_timeout=10,
     )
+    if db_host != "127.0.0.1" and db_host != "localhost":
+        conn_kwargs["ssl"] = {"ssl": True}
+    return pymysql.connect(**conn_kwargs)
 
 def execute_query(sql: str, limit: int = 100):
     safe_sql = enforce_limit(sql, cap=limit)
@@ -681,6 +696,24 @@ HTML_CONTENT = r"""<!DOCTYPE html>
                     body: JSON.stringify({ question })
                 });
 
+                if (!res.ok) {
+                    let errText = `Server returned status ${res.status}`;
+                    try {
+                        const errJson = await res.json();
+                        if (errJson.detail) errText = errJson.detail;
+                    } catch(e) {}
+                    removeElement(loaderId);
+                    renderAgentResponse({
+                        refused: true,
+                        note: `HTTP Error ${res.status}: ${errText}`,
+                        sql: null,
+                        is_safe: false,
+                        execution: null,
+                        total_duration_ms: 0
+                    });
+                    return;
+                }
+
                 const data = await res.json();
                 removeElement(loaderId);
                 renderAgentResponse(data);
@@ -688,7 +721,7 @@ HTML_CONTENT = r"""<!DOCTYPE html>
                 removeElement(loaderId);
                 renderAgentResponse({
                     refused: true,
-                    note: 'Network Error: Unable to reach backend server.',
+                    note: `Network Error: ${err.message || 'Unable to reach backend server.'}`,
                     sql: null,
                     is_safe: false,
                     execution: null,

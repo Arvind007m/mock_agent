@@ -6,13 +6,18 @@ AGENT_SKIP_EXEC=1, execution is skipped and the agent returns its SQL unverified
 import os
 
 def _cfg():
-    return dict(
-        host=os.environ.get("DB_HOST", "127.0.0.1"),
+    host = os.environ.get("DB_HOST", "127.0.0.1")
+    cfg_dict = dict(
+        host=host,
         port=int(os.environ.get("DB_PORT", "3306")),
         user=os.environ.get("AGENT_USER", "agent_ro"),
         password=os.environ.get("AGENT_PW", "agent_ro_pw"),
         database=os.environ.get("DB_NAME", "kezzler"),
+        connect_timeout=10,
     )
+    if host != "127.0.0.1" and host != "localhost":
+        cfg_dict["ssl"] = {"ssl": True}
+    return cfg_dict
 
 def try_execute(sql: str, timeout_ms: int = 5000):
     """Return (ok, error). ok=True means the query ran. Rows are ignored here —
