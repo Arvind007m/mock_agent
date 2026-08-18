@@ -71,13 +71,38 @@ def call_llm(system: str, user: str, max_tokens: int = 1024) -> str:
 
     api_key = os.environ.get(key_env) or os.environ.get("GROQ_API_KEY")
     if not api_key:
-        raise RuntimeError("GROQ_API_KEY environment variable is not configured on Vercel.")
+        api_key = "dummy"
 
     from openai import OpenAI
-    client = OpenAI(base_url=base_url or "https://api.groq.com/openai/v1", api_key=api_key)
-    r = client.chat.completions.create(
-        model=model, max_tokens=max_tokens,
-        messages=[{"role": "system", "content": system},
-                  {"role": "user", "content": user}],
-    )
-    return (r.choices[0].message.content or "").strip()
+    
+    models_to_try = [model]
+    if "groq/compound-mini" not in models_to_try:
+        models_to_try.append("groq/compound-mini")
+    if "groq/compound" not in models_to_try:
+        models_to_try.append("groq/compound")
+
+    last_err = None
+    for m in models_to_try:
+        try:
+            client = OpenAI(
+                base_url=base_url or "https://api.groq.com/openai/v1",
+                api_key=api_key,
+                timeout=30.0,
+                max_retries=2
+            )
+            r = client.chat.completions.create(
+                model=m,
+                max_tokens=max_tokens,
+                messages=[
+                    {"role": "system", "content": system},
+                    {"role": "user", "content": user}
+                ],
+            )
+            res = (r.choices[0].message.content or "").strip()
+            if res:
+                return res
+        except Exception as e:
+            last_err = e
+            time.sleep(0.5)
+
+    raise RuntimeError(f"LLM Call Failed: {str(last_err)}")
