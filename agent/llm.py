@@ -14,7 +14,7 @@ only base_url / key / model change. Pick with AGENT_PROVIDER:
 Override the model any time with AGENT_MODEL.
 Smoke-test with no key at all:  AGENT_FAKE_LLM=1
 """
-import os, json
+import os, json, time
 def _load_dotenv():
     here = os.path.dirname(os.path.abspath(__file__))
     for path in (os.path.join(here, ".env"), os.path.join(here, "..", ".env")):
